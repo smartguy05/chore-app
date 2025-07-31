@@ -1,0 +1,132 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  
+  body {
+    @apply bg-gradient-to-br from-primary-50 to-secondary-50 min-h-screen;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary-500 hover:bg-primary-600 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary-500 hover:bg-secondary-600 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105;
+  }
+  
+  .btn-success {
+    @apply bg-success-500 hover:bg-success-600 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105;
+  }
+  
+  .btn-warning {
+    @apply bg-warning-500 hover:bg-warning-600 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105;
+  }
+  
+  .btn-danger {
+    @apply bg-danger-500 hover:bg-danger-600 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105;
+  }
+  
+  .btn-outline {
+    @apply border-2 border-primary-500 text-primary-600 hover:bg-primary-500 hover:text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 transform hover:scale-105;
+  }
+  
+  .card {
+    @apply bg-white rounded-2xl shadow-lg p-6 border border-gray-100;
+  }
+  
+  .card-hover {
+    @apply card hover:shadow-xl hover:scale-105 transition-all duration-200;
+  }
+  
+  .input-field {
+    @apply w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none transition-colors duration-200;
+  }
+  
+  .task-card {
+    @apply bg-white rounded-2xl shadow-md p-4 border-l-4 transition-all duration-200 hover:shadow-lg;
+  }
+  
+  .task-card.easy {
+    @apply border-l-success-500;
+  }
+  
+  .task-card.medium {
+    @apply border-l-warning-500;
+  }
+  
+  .task-card.hard {
+    @apply border-l-danger-500;
+  }
+  
+  .progress-bar {
+    @apply w-full bg-gray-200 rounded-full h-3 overflow-hidden;
+  }
+  
+  .progress-fill {
+    @apply h-full bg-gradient-to-r from-primary-500 to-secondary-500 transition-all duration-500 ease-out;
+  }
+  
+  .achievement-badge {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium;
+  }
+  
+  .achievement-badge.unlocked {
+    @apply bg-success-100 text-success-800;
+  }
+  
+  .achievement-badge.locked {
+    @apply bg-gray-100 text-gray-500;
+  }
+  
+  .reward-card {
+    @apply bg-white rounded-2xl shadow-md p-4 border-2 transition-all duration-200 hover:shadow-lg;
+  }
+  
+  .reward-card.affordable {
+    @apply border-success-300 hover:border-success-500;
+  }
+  
+  .reward-card.unaffordable {
+    @apply border-gray-200 opacity-60;
+  }
+  
+  .pin-input {
+    @apply w-16 h-16 text-center text-2xl font-bold border-2 border-gray-300 rounded-xl focus:border-primary-500 focus:outline-none transition-colors duration-200;
+  }
+  
+  .level-badge {
+    @apply inline-flex items-center justify-center w-8 h-8 rounded-full text-white font-bold text-sm;
+  }
+  
+  .level-badge.level-1 { @apply bg-gray-500; }
+  .level-badge.level-2 { @apply bg-success-500; }
+  .level-badge.level-3 { @apply bg-secondary-500; }
+  .level-badge.level-4 { @apply bg-warning-500; }
+  .level-badge.level-5 { @apply bg-danger-500; }
+  .level-badge.level-6 { @apply bg-purple-500; }
+  .level-badge.level-7 { @apply bg-pink-500; }
+  .level-badge.level-8 { @apply bg-indigo-500; }
+  .level-badge.level-9 { @apply bg-teal-500; }
+  .level-badge.level-10 { @apply bg-yellow-500; }
+}
+
+@layer utilities {
+  .text-shadow {
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .text-shadow-lg {
+    text-shadow: 4px 4px 8px rgba(0, 0, 0, 0.15);
+  }
+  
+  .backdrop-blur {
+    backdrop-filter: blur(10px);
+  }
+} 
