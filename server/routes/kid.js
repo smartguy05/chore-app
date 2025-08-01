@@ -1,6 +1,7 @@
 const express = require('express');
 const { dbHelpers } = require('../database');
 const { verifyToken } = require('./auth');
+const { getLevelProgress } = require('../utils/levelingSystem');
 
 const router = express.Router();
 
@@ -41,10 +42,8 @@ router.get('/dashboard', verifyToken, async (req, res) => {
       [req.user.userId]
     );
 
-    // Calculate progress to next level
-    const currentLevel = kid.level;
-    const pointsInCurrentLevel = kid.points % 100;
-    const progressToNextLevel = (pointsInCurrentLevel / 100) * 100;
+    // Calculate progress to next level using exponential system
+    const levelProgress = getLevelProgress(kid.points);
 
     // Get available rewards
     const rewards = await dbHelpers.all(
@@ -64,8 +63,7 @@ router.get('/dashboard', verifyToken, async (req, res) => {
       pendingTasks,
       completedTasks,
       stats,
-      progressToNextLevel,
-      nextLevelPoints: 100 - pointsInCurrentLevel,
+      levelProgress,
       rewards
     });
 

@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { dbHelpers } = require('../database');
 const { verifyToken } = require('./auth');
+const { calculateLevelFromPoints, checkLevelUp } = require('../utils/levelingSystem');
 
 const router = express.Router();
 
@@ -53,7 +54,7 @@ function generateRecurringTaskInstances(task, startDate, endDate) {
 // Create a new task (parent only)
 router.post('/', verifyToken, [
   body('title').trim().isLength({ min: 1, max: 100 }),
-  body('description').optional().trim().isLength({ max: 500 }),
+  body('description').optional({nullable: true}).trim().isLength({ max: 500 }),
   body('points').isInt({ min: 1, max: 100 }).toInt(),
   body('difficulty').isIn(['easy', 'medium', 'hard']),
   body('kid_id').optional().custom((value) => {
@@ -65,7 +66,7 @@ router.post('/', verifyToken, [
     }
     return null;
   }),
-  body('due_date').optional().custom((value) => {
+  body('due_date').optional({nullable: true}).custom((value) => {
     if (value && value !== '') {
       const date = new Date(value);
       if (isNaN(date.getTime())) {
@@ -75,8 +76,16 @@ router.post('/', verifyToken, [
     return true;
   }),
   body('is_recurring').optional().isBoolean(),
-  body('recurring_type').optional().isIn(['daily', 'weekly', 'monthly']),
-  body('recurring_days').optional().isArray()
+  body('recurring_type').optional({nullable: true}).custom((value) => {
+    if (value === null || value === undefined || value === '') {
+      return true;
+    }
+    if (!['daily', 'weekly', 'monthly'].includes(value)) {
+      throw new Error('recurring_type must be daily, weekly, or monthly');
+    }
+    return true;
+  }),
+  body('recurring_days').optional({nullable: true}).isArray()
 ], async (req, res) => {
   try {
     console.log('Task creation request body:', req.body);
@@ -234,30 +243,22 @@ router.get('/kid', verifyToken, async (req, res) => {
 // Update a task (parent only)
 router.put('/:taskId', verifyToken, [
   body('title').trim().isLength({ min: 1, max: 100 }),
-  body('description').optional().trim().isLength({ max: 500 }),
-  body('points').isInt({ min: 1, max: 100 }).toInt(),
+  body('description').optional({ nullable: true }).trim().isLength({ max: 500 }),
+  body('points').isNumeric().toInt(),
   body('difficulty').isIn(['easy', 'medium', 'hard']),
-  body('kid_id').optional().custom((value) => {
-    if (value !== null && value !== undefined && value !== '') {
-      if (!Number.isInteger(Number(value))) {
-        throw new Error('kid_id must be an integer');
-      }
-      return Number(value);
+  body('kid_id').optional().isNumeric().toInt(),
+  body('due_date').optional({ nullable: true }).isISO8601().toDate(),
+  body('is_recurring').optional().isBoolean(),
+  body('recurring_type').optional({ nullable: true }).custom((value) => {
+    if (value === null || value === undefined || value === '') {
+      return true;
     }
-    return null;
-  }),
-  body('due_date').optional().custom((value) => {
-    if (value && value !== '') {
-      const date = new Date(value);
-      if (isNaN(date.getTime())) {
-        throw new Error('due_date must be a valid date');
-      }
+    if (!['daily', 'weekly', 'monthly'].includes(value)) {
+      throw new Error('recurring_type must be daily, weekly, or monthly');
     }
     return true;
   }),
-  body('is_recurring').optional().isBoolean(),
-  body('recurring_type').optional().isIn(['daily', 'weekly', 'monthly']),
-  body('recurring_days').optional().isArray()
+  body('recurring_days').optional({ nullable: true }).isArray()
 ], async (req, res) => {
   try {
     if (req.user.type !== 'parent') {
@@ -388,21 +389,25 @@ router.patch('/:taskId/complete', verifyToken, async (req, res) => {
       [req.user.userId]
     );
 
-    // Check if kid leveled up (every 100 points = 1 level)
-    const newLevel = Math.floor(kid.points / 100) + 1;
-    if (newLevel > kid.level) {
+    // Check if kid leveled up using exponential system
+    const oldPoints = kid.points;
+    const newTotalPoints = kid.points + task.points;
+    const levelUpInfo = checkLevelUp(oldPoints, newTotalPoints);
+    
+    if (levelUpInfo.leveledUp) {
       await dbHelpers.run(
         'UPDATE kids SET level = ? WHERE id = ?',
-        [newLevel, req.user.userId]
+        [levelUpInfo.newLevel, req.user.userId]
       );
     }
 
     res.json({
       message: 'Task completed successfully!',
       pointsEarned: task.points,
-      newTotalPoints: kid.points + task.points,
-      leveledUp: newLevel > kid.level,
-      newLevel: newLevel > kid.level ? newLevel : kid.level,
+      newTotalPoints,
+      leveledUp: levelUpInfo.leveledUp,
+      newLevel: levelUpInfo.newLevel,
+      levelsGained: levelUpInfo.levelsGained,
       isRecurring: task.is_recurring
     });
 
@@ -412,72 +417,6 @@ router.patch('/:taskId/complete', verifyToken, async (req, res) => {
   }
 });
 
-// Update a task (parent only)
-router.put('/:taskId', verifyToken, [
-  body('title').optional().trim().isLength({ min: 1, max: 100 }),
-  body('description').optional().trim().isLength({ max: 500 }),
-  body('points').optional().isInt({ min: 1, max: 100 }),
-  body('difficulty').optional().isIn(['easy', 'medium', 'hard']),
-  body('kid_id').optional().isInt(),
-  body('due_date').optional().isISO8601(),
-  body('status').optional().isIn(['pending', 'completed', 'cancelled'])
-], async (req, res) => {
-  try {
-    if (req.user.type !== 'parent') {
-      return res.status(403).json({ error: 'Only parents can update tasks' });
-    }
-
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { taskId } = req.params;
-    const updateFields = req.body;
-
-    // Verify task belongs to parent
-    const existingTask = await dbHelpers.get(
-      'SELECT * FROM tasks WHERE id = ? AND parent_id = ?',
-      [taskId, req.user.userId]
-    );
-
-    if (!existingTask) {
-      return res.status(404).json({ error: 'Task not found' });
-    }
-
-    // Build update query
-    const updateKeys = Object.keys(updateFields).filter(key => 
-      ['title', 'description', 'points', 'difficulty', 'kid_id', 'due_date', 'status'].includes(key)
-    );
-
-    if (updateKeys.length === 0) {
-      return res.status(400).json({ error: 'No valid fields to update' });
-    }
-
-    const setClause = updateKeys.map(key => `${key} = ?`).join(', ');
-    const values = updateKeys.map(key => updateFields[key]);
-
-    await dbHelpers.run(
-      `UPDATE tasks SET ${setClause} WHERE id = ?`,
-      [...values, taskId]
-    );
-
-    // Get updated task
-    const updatedTask = await dbHelpers.get(
-      'SELECT * FROM tasks WHERE id = ?',
-      [taskId]
-    );
-
-    res.json({
-      message: 'Task updated successfully',
-      task: updatedTask
-    });
-
-  } catch (error) {
-    console.error('Update task error:', error);
-    res.status(500).json({ error: 'Failed to update task' });
-  }
-});
 
 // Delete a task (parent only)
 router.delete('/:taskId', verifyToken, async (req, res) => {

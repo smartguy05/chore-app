@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Edit, Trash2, RefreshCw, Calendar, Users, Star, CheckSquare, Clock, X } from 'lucide-react';
+import { Edit, Trash2, RefreshCw, Calendar, Users, Star, CheckSquare, Clock, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
@@ -30,10 +30,18 @@ const TasksView: React.FC<TasksViewProps> = ({ onTaskUpdated }) => {
   const [loading, setLoading] = useState(true);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [currentWeekOffset, setCurrentWeekOffset] = useState(0);
 
   useEffect(() => {
     fetchTasks();
   }, []);
+
+  // Refresh tasks when week offset changes
+  useEffect(() => {
+    if (currentWeekOffset !== 0) {
+      fetchTasks();
+    }
+  }, [currentWeekOffset]);
 
   const fetchTasks = async () => {
     try {
@@ -48,7 +56,7 @@ const TasksView: React.FC<TasksViewProps> = ({ onTaskUpdated }) => {
   };
 
   const handleDeleteTask = async (taskId: number) => {
-    if (!confirm('Are you sure you want to delete this task?')) return;
+    if (!window.confirm('Are you sure you want to delete this task?')) return;
 
     try {
       await axios.delete(`/api/tasks/${taskId}`);
@@ -121,6 +129,89 @@ const TasksView: React.FC<TasksViewProps> = ({ onTaskUpdated }) => {
     }
   };
 
+  // Get start of week (Monday) for a given date
+  const getWeekStart = (date: Date) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+    return new Date(d.setDate(diff));
+  };
+
+  // Get end of week (Sunday) for a given date - includes weekend
+  const getWeekEnd = (date: Date) => {
+    const weekStart = getWeekStart(date);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6); // Sunday (6 days after Monday)
+    weekEnd.setHours(23, 59, 59, 999);
+    return weekEnd;
+  };
+
+  // Get current week boundaries based on offset
+  const getCurrentWeekBoundaries = () => {
+    const today = new Date();
+    const baseDate = new Date(today);
+    baseDate.setDate(today.getDate() + (currentWeekOffset * 7));
+    
+    const weekStart = getWeekStart(baseDate);
+    const weekEnd = getWeekEnd(baseDate);
+    
+    return { weekStart, weekEnd };
+  };
+
+  // Group recurring tasks by template and kid
+  const groupRecurringTasks = (allTasks: Task[]) => {
+    const { weekStart, weekEnd } = getCurrentWeekBoundaries();
+    
+    
+    // Separate recurring templates from instances and regular tasks
+    const recurringTemplates = allTasks.filter(task => task.is_recurring && !task.is_recurring_instance);
+    const recurringInstances = allTasks.filter(task => task.is_recurring_instance);
+    const regularTasks = allTasks.filter(task => !task.is_recurring);
+    
+    // Filter regular tasks to current week
+    const weeklyRegularTasks = regularTasks.filter(task => {
+      if (!task.due_date) return true;
+      const dueDate = new Date(task.due_date);
+      const isInWeek = dueDate >= weekStart && dueDate <= weekEnd;
+      
+      
+      return isInWeek;
+    });
+    
+    // Group recurring templates by task + kid combination
+    const groupedRecurring: { [key: string]: Task & { instanceCount: number } } = {};
+    
+    recurringTemplates.forEach(template => {
+      const key = `${template.id}-${template.kid_id || 'unassigned'}`;
+      
+      // Count instances for this template in current week
+      const weeklyInstances = recurringInstances.filter(instance => {
+        if (instance.id !== template.id) return false;
+        if (!instance.due_date) return false;
+        const dueDate = new Date(instance.due_date);
+        return dueDate >= weekStart && dueDate <= weekEnd;
+      });
+      
+      groupedRecurring[key] = {
+        ...template,
+        instanceCount: weeklyInstances.length,
+        due_date: weeklyInstances.length > 0 ? weeklyInstances[0].due_date : template.due_date
+      };
+    });
+    
+    return {
+      recurringTasks: Object.values(groupedRecurring),
+      regularTasks: weeklyRegularTasks,
+      weekStart,
+      weekEnd
+    };
+  };
+
+  const formatWeekRange = (start: Date, end: Date) => {
+    const options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+    return `${start.toLocaleDateString('en-US', options)} - ${end.toLocaleDateString('en-US', options)}`;
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -129,96 +220,209 @@ const TasksView: React.FC<TasksViewProps> = ({ onTaskUpdated }) => {
     );
   }
 
+  const { recurringTasks, regularTasks, weekStart, weekEnd } = groupRecurringTasks(tasks);
+  const allDisplayTasks = [...recurringTasks, ...regularTasks];
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">All Tasks</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Tasks</h2>
         <div className="text-sm text-gray-600">
-          {tasks.length} task{tasks.length !== 1 ? 's' : ''}
+          {allDisplayTasks.length} task{allDisplayTasks.length !== 1 ? 's' : ''}
         </div>
       </div>
 
-      {tasks.length === 0 ? (
+      {/* Week Navigation */}
+      <div className="flex items-center justify-between bg-gray-50 rounded-lg p-4">
+        <button
+          onClick={() => setCurrentWeekOffset(currentWeekOffset - 1)}
+          className="flex items-center px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-white rounded-lg transition-colors"
+        >
+          <ChevronLeft className="w-4 h-4 mr-1" />
+          Previous Week
+        </button>
+        
+        <div className="text-center">
+          <div className="font-semibold text-gray-900">
+            {currentWeekOffset === 0 ? 'This Week' : 
+             currentWeekOffset === 1 ? 'Next Week' :
+             currentWeekOffset === -1 ? 'Last Week' :
+             currentWeekOffset > 0 ? `${currentWeekOffset} Weeks Ahead` :
+             `${Math.abs(currentWeekOffset)} Weeks Ago`}
+          </div>
+          <div className="text-sm text-gray-600">
+            {formatWeekRange(weekStart, weekEnd)}
+          </div>
+        </div>
+        
+        <button
+          onClick={() => setCurrentWeekOffset(currentWeekOffset + 1)}
+          className="flex items-center px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-white rounded-lg transition-colors"
+        >
+          Next Week
+          <ChevronRight className="w-4 h-4 ml-1" />
+        </button>
+      </div>
+
+      {allDisplayTasks.length === 0 ? (
         <div className="text-center py-12">
           <CheckSquare className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No tasks yet</h3>
-          <p className="mt-1 text-sm text-gray-500">Create your first task to get started.</p>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">No tasks this week</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            {currentWeekOffset === 0 ? 'Create your first task to get started.' : 'No tasks scheduled for this week.'}
+          </p>
         </div>
       ) : (
-        <div className="grid gap-4">
-          {tasks.map((task) => (
-            <motion.div
-              key={task.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="text-lg font-semibold text-gray-900">{task.title}</h3>
-                    {task.is_recurring && (
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        <RefreshCw className="w-3 h-3 mr-1" />
-                        Recurring
-                      </span>
-                    )}
-                  </div>
-                  
-                  {task.description && (
-                    <p className="text-gray-600 mb-3">{task.description}</p>
-                  )}
+        <div className="space-y-6">
+          {/* Regular Tasks Section */}
+          {regularTasks.length > 0 && (
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <CheckSquare className="w-5 h-5 mr-2 text-green-600" />
+                One-time Tasks
+              </h3>
+              <div className="grid gap-4">
+                {regularTasks.map((task) => (
+                  <motion.div
+                    key={task.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="text-lg font-semibold text-gray-900">{task.title}</h3>
+                        </div>
+                        
+                        {task.description && (
+                          <p className="text-gray-600 mb-3">{task.description}</p>
+                        )}
 
-                  <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
-                    <span className="flex items-center">
-                      <Star className="w-4 h-4 mr-1 text-yellow-500" />
-                      {task.points} points
-                    </span>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDifficultyColor(task.difficulty)}`}>
-                      {task.difficulty.charAt(0).toUpperCase() + task.difficulty.slice(1)}
-                    </span>
-                    <span className="flex items-center">
-                      <Users className="w-4 h-4 mr-1" />
-                      {task.kid_name || 'Unassigned'}
-                    </span>
-                    <span className="flex items-center">
-                      <Calendar className="w-4 h-4 mr-1" />
-                      {formatDate(task.due_date)}
-                    </span>
-                  </div>
+                        <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
+                          <span className="flex items-center">
+                            <Star className="w-4 h-4 mr-1 text-yellow-500" />
+                            {task.points} points
+                          </span>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDifficultyColor(task.difficulty)}`}>
+                            {task.difficulty.charAt(0).toUpperCase() + task.difficulty.slice(1)}
+                          </span>
+                          <span className="flex items-center">
+                            <Users className="w-4 h-4 mr-1" />
+                            {task.kid_name || 'Unassigned'}
+                          </span>
+                          <span className="flex items-center">
+                            <Calendar className="w-4 h-4 mr-1" />
+                            {formatDate(task.due_date)}
+                          </span>
+                        </div>
 
-                  {task.is_recurring && (
-                    <div className="text-sm text-blue-600 mb-3">
-                      {getRecurringDescription(task)}
+                        <div className="flex items-center justify-between">
+                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(task.status)}`}>
+                            {task.status.charAt(0).toUpperCase() + task.status.slice(1)}
+                          </span>
+                          
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleEditTask(task)}
+                              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Edit task"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteTask(task.id)}
+                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Delete task"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  )}
-
-                  <div className="flex items-center justify-between">
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(task.status)}`}>
-                      {task.status.charAt(0).toUpperCase() + task.status.slice(1)}
-                    </span>
-                    
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleEditTask(task)}
-                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Edit task"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteTask(task.id)}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Delete task"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                  </motion.div>
+                ))}
               </div>
-            </motion.div>
-          ))}
+            </div>
+          )}
+          
+          {/* Recurring Tasks Section */}
+          {recurringTasks.length > 0 && (
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <RefreshCw className="w-5 h-5 mr-2 text-blue-600" />
+                Recurring Tasks
+              </h3>
+              <div className="grid gap-4">
+                {recurringTasks.map((task) => (
+                  <motion.div
+                    key={`recurring-${task.id}-${task.kid_id || 'unassigned'}`}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white rounded-lg border border-blue-200 p-6 hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="text-lg font-semibold text-gray-900">{task.title}</h3>
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            <RefreshCw className="w-3 h-3 mr-1" />
+                            {(task as any).instanceCount} times this week
+                          </span>
+                        </div>
+                        
+                        {task.description && (
+                          <p className="text-gray-600 mb-3">{task.description}</p>
+                        )}
+
+                        <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
+                          <span className="flex items-center">
+                            <Star className="w-4 h-4 mr-1 text-yellow-500" />
+                            {task.points} points each
+                          </span>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDifficultyColor(task.difficulty)}`}>
+                            {task.difficulty.charAt(0).toUpperCase() + task.difficulty.slice(1)}
+                          </span>
+                          <span className="flex items-center">
+                            <Users className="w-4 h-4 mr-1" />
+                            {task.kid_name || 'Unassigned'}
+                          </span>
+                        </div>
+
+                        <div className="text-sm text-blue-600 mb-3">
+                          {getRecurringDescription(task)}
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(task.status)}`}>
+                            {task.status.charAt(0).toUpperCase() + task.status.slice(1)}
+                          </span>
+                          
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleEditTask(task)}
+                              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Edit recurring task"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteTask(task.id)}
+                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Delete recurring task"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -261,7 +465,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, onClose, onTaskUpda
 
   const fetchKids = async () => {
     try {
-      const response = await axios.get('/api/kids');
+      const response = await axios.get('/api/parent/kids');
       setKids(response.data.kids);
     } catch (error) {
       console.error('Failed to fetch kids:', error);
@@ -280,7 +484,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, onClose, onTaskUpda
         description: description.trim() || null,
         points: parseInt(points.toString()),
         difficulty,
-        due_date: dueDate || null,
+        due_date: dueDate ? new Date(dueDate).toISOString() : null,
         is_recurring: isRecurring,
         recurring_type: isRecurring ? recurringType : null,
         recurring_days: isRecurring ? recurringDays : null

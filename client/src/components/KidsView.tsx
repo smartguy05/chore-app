@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Edit, Trash2, Star, Trophy, User, X } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { getLevelProgress, LevelProgress } from '../utils/levelingSystem';
 
 interface Kid {
   id: number;
@@ -29,7 +30,7 @@ const KidsView: React.FC<KidsViewProps> = ({ onKidUpdated }) => {
 
   const fetchKids = async () => {
     try {
-      const response = await axios.get('/api/kids');
+      const response = await axios.get('/api/parent/kids');
       setKids(response.data.kids);
     } catch (error) {
       console.error('Failed to fetch kids:', error);
@@ -40,7 +41,7 @@ const KidsView: React.FC<KidsViewProps> = ({ onKidUpdated }) => {
   };
 
   const handleDeleteKid = async (kidId: number) => {
-    if (!confirm('Are you sure you want to delete this kid? This will also delete all their tasks and progress.')) return;
+    if (!window.confirm('Are you sure you want to delete this kid? This will also delete all their tasks and progress.')) return;
 
     try {
       await axios.delete(`/api/kids/${kidId}`);
@@ -176,18 +177,28 @@ const KidsView: React.FC<KidsViewProps> = ({ onKidUpdated }) => {
                 </div>
 
                 <div className="pt-3 border-t border-gray-100">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">Progress to next level</span>
-                    <span className="text-gray-900">
-                      {kid.points % 100}/100
-                    </span>
-                  </div>
-                  <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-primary-600 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${(kid.points % 100)}%` }}
-                    ></div>
-                  </div>
+                  {(() => {
+                    const progress: LevelProgress = getLevelProgress(kid.points);
+                    return (
+                      <div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500">Progress to next level</span>
+                          <span className="text-gray-900">
+                            {progress.pointsInCurrentLevel}/{progress.pointsNeededForNextLevel}
+                          </span>
+                        </div>
+                        <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-primary-600 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${progress.progressPercentage}%` }}
+                          ></div>
+                        </div>
+                        <div className="mt-1 text-xs text-gray-500 text-center">
+                          {progress.pointsToNextLevel} points to level {progress.currentLevel + 1}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </motion.div>

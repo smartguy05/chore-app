@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const { body, validationResult } = require('express-validator');
 const { dbHelpers } = require('../database');
+const { seedRewardsIfEmpty } = require('../utils/seedRewards');
 
 const router = express.Router();
 
@@ -58,6 +59,14 @@ router.post('/register', [
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
+
+    // Seed default rewards for new parent (run in background)
+    try {
+      await seedRewardsIfEmpty(result.id);
+    } catch (error) {
+      console.error('Failed to seed rewards for new parent:', error);
+      // Don't fail registration if reward seeding fails
+    }
 
     res.status(201).json({
       message: 'Parent account created successfully',

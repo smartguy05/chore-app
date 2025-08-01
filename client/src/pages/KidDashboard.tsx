@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { getLevelProgress, LevelProgress } from '../utils/levelingSystem';
 
 interface Task {
   id: number;
@@ -70,7 +71,7 @@ const KidDashboard: React.FC = () => {
     setCompletingTask(taskId);
     try {
       const response = await axios.patch(`/api/tasks/${taskId}/complete`);
-      const { pointsEarned, newTotalPoints, leveledUp, newLevel } = response.data;
+      const { pointsEarned, newTotalPoints, leveledUp, newLevel, levelsGained } = response.data;
       
       // Update tasks list
       setTasks(prev => prev.filter(task => task.id !== taskId));
@@ -79,7 +80,10 @@ const KidDashboard: React.FC = () => {
       toast.success(`🎉 Task completed! You earned ${pointsEarned} points!`);
       
       if (leveledUp) {
-        toast.success(`🎊 LEVEL UP! You're now level ${newLevel}!`, { duration: 5000 });
+        const levelMessage = levelsGained > 1 
+          ? `🎊 AMAZING! You jumped ${levelsGained} levels to level ${newLevel}!`
+          : `🎊 LEVEL UP! You're now level ${newLevel}!`;
+        toast.success(levelMessage, { duration: 5000 });
       }
       
       // Refresh data to get updated points
@@ -129,8 +133,7 @@ const KidDashboard: React.FC = () => {
     );
   }
 
-  const progressToNextLevel = (user?.points || 0) % 100;
-  const nextLevelPoints = 100 - progressToNextLevel;
+  const levelProgress: LevelProgress = getLevelProgress(user?.points || 0);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50">
@@ -174,19 +177,22 @@ const KidDashboard: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div className="bg-white rounded-xl p-4 shadow-sm">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-medium text-gray-700">Progress to Level {(user?.level || 1) + 1}</span>
-            <span className="text-sm text-gray-500">{progressToNextLevel}/100 points</span>
+            <span className="text-sm font-medium text-gray-700">Progress to Level {levelProgress.currentLevel + 1}</span>
+            <span className="text-sm text-gray-500">{levelProgress.pointsInCurrentLevel}/{levelProgress.pointsNeededForNextLevel} points</span>
           </div>
           <div className="progress-bar">
             <motion.div
               className="progress-fill"
               initial={{ width: 0 }}
-              animate={{ width: `${(progressToNextLevel / 100) * 100}%` }}
+              animate={{ width: `${levelProgress.progressPercentage}%` }}
               transition={{ duration: 1, ease: "easeOut" }}
             />
           </div>
           <p className="text-xs text-gray-500 mt-1">
-            {nextLevelPoints} more points to level up! 🚀
+            {levelProgress.pointsToNextLevel} more points to level up! 🚀
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            {levelProgress.pointsInCurrentLevel}/{levelProgress.pointsNeededForNextLevel} points to level {levelProgress.currentLevel + 1}
           </p>
         </div>
       </div>
@@ -398,7 +404,7 @@ const KidDashboard: React.FC = () => {
                     </div>
                     <div className="bg-secondary-50 rounded-xl p-4">
                       <div className="text-2xl font-bold text-secondary-600">
-                        {Math.floor((user?.points || 0) / 100) + 1}
+                        {levelProgress.currentLevel + 1}
                       </div>
                       <div className="text-sm text-gray-600">Next Level</div>
                     </div>
