@@ -4,6 +4,7 @@ import { Edit, Trash2, Star, Trophy, User, X } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { getLevelProgress, LevelProgress } from '../utils/levelingSystem';
+import KidDetailModal from './KidDetailModal';
 
 interface Kid {
   id: number;
@@ -23,6 +24,8 @@ const KidsView: React.FC<KidsViewProps> = ({ onKidUpdated }) => {
   const [loading, setLoading] = useState(true);
   const [editingKid, setEditingKid] = useState<Kid | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedKid, setSelectedKid] = useState<Kid | null>(null);
+  const [showKidDetail, setShowKidDetail] = useState(false);
 
   useEffect(() => {
     fetchKids();
@@ -129,7 +132,11 @@ const KidsView: React.FC<KidsViewProps> = ({ onKidUpdated }) => {
               key={kid.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow"
+              onClick={() => {
+                setSelectedKid(kid);
+                setShowKidDetail(true);
+              }}
+              className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg transition-all cursor-pointer hover:border-primary-300"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
@@ -141,14 +148,20 @@ const KidsView: React.FC<KidsViewProps> = ({ onKidUpdated }) => {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => handleEditKid(kid)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEditKid(kid);
+                    }}
                     className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     title="Edit kid"
                   >
                     <Edit className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => handleDeleteKid(kid.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteKid(kid.id);
+                    }}
                     className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                     title="Delete kid"
                   >
@@ -200,6 +213,12 @@ const KidsView: React.FC<KidsViewProps> = ({ onKidUpdated }) => {
                     );
                   })()}
                 </div>
+                
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <p className="text-xs text-gray-400 text-center">
+                    Click to view task history
+                  </p>
+                </div>
               </div>
             </motion.div>
           ))}
@@ -212,6 +231,15 @@ const KidsView: React.FC<KidsViewProps> = ({ onKidUpdated }) => {
           kid={editingKid}
           onClose={() => setShowEditModal(false)}
           onKidUpdated={handleKidUpdated}
+        />
+      )}
+
+      {/* Kid Detail Modal */}
+      {showKidDetail && selectedKid && (
+        <KidDetailModal
+          kid={selectedKid}
+          isOpen={showKidDetail}
+          onClose={() => setShowKidDetail(false)}
         />
       )}
     </div>

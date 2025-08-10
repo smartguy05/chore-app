@@ -28,6 +28,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose, onTaskCreate
   const [kids, setKids] = useState<Kid[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingKids, setLoadingKids] = useState(true);
+  const [isAnybodyTask, setIsAnybodyTask] = useState(false);
 
   useEffect(() => {
     fetchKids();
@@ -37,7 +38,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose, onTaskCreate
     try {
       const response = await axios.get('/api/parent/kids');
       setKids(response.data.kids);
-      if (response.data.kids.length > 0) {
+      if (response.data.kids.length > 0 && !isAnybodyTask) {
         setKidId(response.data.kids[0].id);
       }
     } catch (error) {
@@ -53,8 +54,8 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose, onTaskCreate
       toast.error('Please enter a task title');
       return;
     }
-    if (kids.length > 0 && !kidId) {
-      toast.error('Please select a kid for this task');
+    if (kids.length > 0 && !kidId && !isAnybodyTask) {
+      toast.error('Please select a kid for this task or make it an "anybody" task');
       return;
     }
 
@@ -68,10 +69,11 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose, onTaskCreate
         due_date: dueDate || null,
         is_recurring: isRecurring,
         recurring_type: isRecurring ? recurringType : null,
-        recurring_days: isRecurring ? recurringDays : null
+        recurring_days: isRecurring ? recurringDays : null,
+        is_anybody_task: isAnybodyTask
       };
 
-      if (kidId) {
+      if (kidId && !isAnybodyTask) {
         taskData.kid_id = parseInt(kidId.toString());
       }
 
@@ -227,8 +229,35 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose, onTaskCreate
               </div>
             </div>
 
+            {/* Anybody Task Option */}
+            <div>
+              <label className="flex items-center space-x-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isAnybodyTask}
+                  onChange={(e) => {
+                    setIsAnybodyTask(e.target.checked);
+                    if (e.target.checked) {
+                      setKidId(null);
+                    } else if (kids.length > 0) {
+                      setKidId(kids[0].id);
+                    }
+                  }}
+                  className="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500"
+                />
+                <div>
+                  <span className="text-sm font-medium text-gray-700">
+                    Make this an "Anybody" Task
+                  </span>
+                  <p className="text-xs text-gray-500">
+                    First kid to complete gets the points - encourages quick action!
+                  </p>
+                </div>
+              </label>
+            </div>
+
             {/* Assign to Kid */}
-            {!loadingKids && (
+            {!loadingKids && !isAnybodyTask && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Assign to Kid {kids.length > 0 ? '*' : ''}
@@ -244,7 +273,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose, onTaskCreate
                     value={kidId || ''}
                     onChange={(e) => setKidId(e.target.value ? parseInt(e.target.value) : null)}
                     className="input-field w-full"
-                    required
+                    required={!isAnybodyTask}
                   >
                     <option value="">Select a kid...</option>
                     {kids.map((kid) => (
@@ -385,7 +414,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose, onTaskCreate
               </button>
               <button
                 type="submit"
-                disabled={loading || !title.trim() || (kids.length > 0 && !kidId)}
+                disabled={loading || !title.trim() || (kids.length > 0 && !kidId && !isAnybodyTask)}
                 className="flex-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (

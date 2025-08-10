@@ -10,7 +10,9 @@ import {
   Sparkles,
   Target,
   Award,
-  Zap
+  Zap,
+  Calendar,
+  CheckCircle
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -29,6 +31,22 @@ interface Task {
   recurring_type?: 'daily' | 'weekly' | 'monthly';
   recurring_days?: string;
   is_recurring_instance?: boolean;
+  is_anybody_task?: boolean;
+  completed_by_kid_name?: string;
+  is_missed_opportunity?: boolean;
+  completed_at?: string;
+}
+
+interface MissedTask {
+  title: string;
+  points: number;
+  completed_at: string;
+  completed_by_kid_name: string;
+}
+
+interface AnybodyTaskStats {
+  anybodyTasksCompleted: number;
+  extraPointsEarned: number;
 }
 
 interface Reward {
@@ -39,6 +57,15 @@ interface Reward {
   canAfford: boolean;
 }
 
+interface CheckinStatus {
+  hasCheckedIn: boolean;
+  checkinData: {
+    check_date: string;
+    points_earned: number;
+    created_at: string;
+  } | null;
+}
+
 const KidDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -46,6 +73,10 @@ const KidDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'tasks' | 'rewards' | 'profile'>('tasks');
   const [completingTask, setCompletingTask] = useState<number | null>(null);
+  const [checkinStatus, setCheckinStatus] = useState<CheckinStatus>({ hasCheckedIn: false, checkinData: null });
+  const [checkingIn, setCheckingIn] = useState(false);
+  const [missedTasks, setMissedTasks] = useState<MissedTask[]>([]);
+  const [anybodyStats, setAnybodyStats] = useState<AnybodyTaskStats>({ anybodyTasksCompleted: 0, extraPointsEarned: 0 });
 
   useEffect(() => {
     fetchDashboardData();
@@ -53,13 +84,19 @@ const KidDashboard: React.FC = () => {
 
   const fetchDashboardData = async () => {
     try {
-      const [tasksRes, rewardsRes] = await Promise.all([
+      const [tasksRes, rewardsRes, checkinRes, missedRes, statsRes] = await Promise.all([
         axios.get('/api/tasks/kid'),
-        axios.get('/api/rewards/kid')
+        axios.get('/api/rewards/kid'),
+        axios.get('/api/checkin/status'),
+        axios.get('/api/tasks/missed-opportunities'),
+        axios.get('/api/tasks/anybody-stats')
       ]);
 
       setTasks(tasksRes.data.tasks);
       setRewards(rewardsRes.data.rewards);
+      setCheckinStatus(checkinRes.data);
+      setMissedTasks(missedRes.data.missedTasks);
+      setAnybodyStats(statsRes.data);
     } catch (error) {
       toast.error('Failed to load your data');
     } finally {
@@ -71,13 +108,17 @@ const KidDashboard: React.FC = () => {
     setCompletingTask(taskId);
     try {
       const response = await axios.patch(`/api/tasks/${taskId}/complete`);
-      const { pointsEarned, newTotalPoints, leveledUp, newLevel, levelsGained } = response.data;
+      const { pointsEarned, newTotalPoints, leveledUp, newLevel, levelsGained, isAnybodyTask } = response.data;
       
       // Update tasks list
       setTasks(prev => prev.filter(task => task.id !== taskId));
       
       // Show success message
-      toast.success(`🎉 Task completed! You earned ${pointsEarned} points!`);
+      if (isAnybodyTask) {
+        toast.success(`🏆 First to complete! You earned ${pointsEarned} bonus points!`);
+      } else {
+        toast.success(`🎉 Task completed! You earned ${pointsEarned} points!`);
+      }
       
       if (leveledUp) {
         const levelMessage = levelsGained > 1 
@@ -107,6 +148,31 @@ const KidDashboard: React.FC = () => {
     } catch (error: any) {
       const message = error.response?.data?.error || 'Failed to redeem reward';
       toast.error(message);
+    }
+  };
+
+  const handleCheckin = async () => {
+    setCheckingIn(true);
+    try {
+      const response = await axios.post('/api/checkin/checkin');
+      const { pointsEarned, newTotalPoints, leveledUp, newLevel, levelsGained } = response.data;
+      
+      toast.success(`🌟 Daily check-in complete! You earned ${pointsEarned} points!`);
+      
+      if (leveledUp) {
+        const levelMessage = levelsGained > 1 
+          ? `🎊 AMAZING! You jumped ${levelsGained} levels to level ${newLevel}!`
+          : `🎊 LEVEL UP! You're now level ${newLevel}!`;
+        toast.success(levelMessage, { duration: 5000 });
+      }
+      
+      // Refresh data to get updated status
+      fetchDashboardData();
+    } catch (error: any) {
+      const message = error.response?.data?.error || 'Check-in failed';
+      toast.error(message);
+    } finally {
+      setCheckingIn(false);
     }
   };
 
@@ -197,6 +263,50 @@ const KidDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Daily Check-in */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4">
+        <div className="bg-white rounded-xl p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Calendar className="w-5 h-5 text-primary-600 mr-2" />
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Daily Check-in</h3>
+                <p className="text-sm text-gray-600">
+                  {checkinStatus.hasCheckedIn 
+                    ? `✅ Already checked in today! You earned ${checkinStatus.checkinData?.points_earned} points.`
+                    : 'Check in today to earn bonus points!'
+                  }
+                </p>
+              </div>
+            </div>
+            
+            {!checkinStatus.hasCheckedIn && (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleCheckin}
+                disabled={checkingIn}
+                className="btn-primary flex items-center"
+              >
+                {checkingIn ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                ) : (
+                  <CheckCircle className="w-5 h-5 mr-2" />
+                )}
+                {checkingIn ? 'Checking in...' : 'Check In!'}
+              </motion.button>
+            )}
+            
+            {checkinStatus.hasCheckedIn && (
+              <div className="flex items-center text-success-600">
+                <CheckCircle className="w-5 h-5 mr-2" />
+                <span className="font-medium">Checked In!</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Navigation Tabs */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex space-x-1 bg-white rounded-xl p-1 shadow-sm mb-8">
@@ -251,7 +361,11 @@ const KidDashboard: React.FC = () => {
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.9 }}
-                        className={`task-card ${task.difficulty} hover:shadow-lg transition-all duration-200`}
+                        className={`task-card ${task.difficulty} ${
+                          task.is_missed_opportunity 
+                            ? 'opacity-60 bg-gray-100 border-gray-300 relative' 
+                            : 'hover:shadow-lg'
+                        } transition-all duration-200`}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
@@ -260,6 +374,16 @@ const KidDashboard: React.FC = () => {
                               {task.is_recurring && (
                                 <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full font-medium">
                                   🔄 {task.recurring_type}
+                                </span>
+                              )}
+                              {task.is_anybody_task && !task.is_missed_opportunity && (
+                                <span className="px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-full font-medium">
+                                  ⚡ First Come First Served
+                                </span>
+                              )}
+                              {task.is_missed_opportunity && (
+                                <span className="px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-full font-medium">
+                                  😞 MISSED OPPORTUNITY
                                 </span>
                               )}
                             </div>
@@ -288,20 +412,34 @@ const KidDashboard: React.FC = () => {
                             </div>
                           </div>
                           
-                          <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => handleCompleteTask(task.id)}
-                            disabled={completingTask === task.id}
-                            className="btn-success ml-4 flex items-center"
-                          >
-                            {completingTask === task.id ? (
-                              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                            ) : (
-                              <Zap className="w-5 h-5 mr-2" />
-                            )}
-                            Complete!
-                          </motion.button>
+                          {task.is_missed_opportunity ? (
+                            <div className="ml-4 flex flex-col items-end">
+                              <div className="text-sm font-medium text-orange-600 mb-1">
+                                Missed {task.points} bonus points
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                Completed {task.completed_at ? new Date(task.completed_at).toLocaleDateString() : 'recently'}
+                              </div>
+                              <div className="text-xs text-orange-600 font-medium mt-1">
+                                Someone else got there first!
+                              </div>
+                            </div>
+                          ) : (
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => handleCompleteTask(task.id)}
+                              disabled={completingTask === task.id}
+                              className="btn-success ml-4 flex items-center"
+                            >
+                              {completingTask === task.id ? (
+                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                              ) : (
+                                <Zap className="w-5 h-5 mr-2" />
+                              )}
+                              Complete!
+                            </motion.button>
+                          )}
                         </div>
                       </motion.div>
                     ))}
@@ -393,7 +531,7 @@ const KidDashboard: React.FC = () => {
                   <h3 className="text-2xl font-bold text-gray-900 mb-2">{user?.name}</h3>
                   <p className="text-gray-600 mb-6">Level {user?.level} Chore Champion! 🏆</p>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="bg-primary-50 rounded-xl p-4">
                       <div className="text-2xl font-bold text-primary-600">{user?.points || 0}</div>
                       <div className="text-sm text-gray-600">Total Points</div>
@@ -408,7 +546,49 @@ const KidDashboard: React.FC = () => {
                       </div>
                       <div className="text-sm text-gray-600">Next Level</div>
                     </div>
+                    <div className="bg-orange-50 rounded-xl p-4">
+                      <div className="text-2xl font-bold text-orange-600">{anybodyStats.extraPointsEarned}</div>
+                      <div className="text-sm text-gray-600">Bonus Points</div>
+                      <div className="text-xs text-gray-500">{anybodyStats.anybodyTasksCompleted} first-come tasks</div>
+                    </div>
                   </div>
+                  
+                  {/* Missed Opportunities */}
+                  {missedTasks.length > 0 && (
+                    <div className="mt-8">
+                      <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <Calendar className="w-5 h-5 text-orange-600 mr-2" />
+                        Missed Opportunities (Last 7 Days)
+                      </h4>
+                      <div className="space-y-2">
+                        {missedTasks.slice(0, 3).map((missed, index) => (
+                          <div key={index} className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                            <div className="flex justify-between items-center">
+                              <div>
+                                <p className="font-medium text-orange-900">{missed.title}</p>
+                                <p className="text-sm text-orange-700">
+                                  Someone else completed this and earned {missed.points} points
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-sm font-medium text-orange-600">
+                                  -{missed.points} pts
+                                </div>
+                                <div className="text-xs text-orange-500">
+                                  {new Date(missed.completed_at).toLocaleDateString()}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {missedTasks.length > 3 && (
+                          <p className="text-sm text-gray-500 text-center">
+                            And {missedTasks.length - 3} more...
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>

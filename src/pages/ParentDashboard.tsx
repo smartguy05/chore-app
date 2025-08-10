@@ -16,6 +16,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import AddKidModal from '../components/AddKidModal';
 import CreateTaskModal from '../components/CreateTaskModal';
+import CheckinSettingsModal from '../components/CheckinSettingsModal';
 import TasksView from '../components/TasksView';
 import KidsView from '../components/KidsView';
 import RewardsView from '../components/RewardsView';
@@ -62,6 +63,7 @@ const ParentDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'kids' | 'rewards'>('overview');
   const [showAddKid, setShowAddKid] = useState(false);
   const [showCreateTask, setShowCreateTask] = useState(false);
+  const [showCheckinSettings, setShowCheckinSettings] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -120,6 +122,14 @@ const ParentDashboard: React.FC = () => {
             
             <div className="flex items-center space-x-4">
               <span className="text-gray-600">Welcome, {user?.name}!</span>
+              <button
+                onClick={() => setShowCheckinSettings(true)}
+                className="flex items-center text-gray-600 hover:text-gray-800 transition-colors"
+                title="Check-in Settings"
+              >
+                <Settings className="w-5 h-5 mr-2" />
+                Settings
+              </button>
               <button
                 onClick={handleLogout}
                 className="flex items-center text-gray-600 hover:text-gray-800 transition-colors"
@@ -364,6 +374,17 @@ const ParentDashboard: React.FC = () => {
         <CreateTaskModal
           onClose={() => setShowCreateTask(false)}
           onTaskCreated={fetchDashboardData}
+        />
+      )}
+
+      {/* Check-in Settings Modal */}
+      {showCheckinSettings && (
+        <CheckinSettingsModal
+          isOpen={showCheckinSettings}
+          onClose={() => setShowCheckinSettings(false)}
+          onSave={() => {
+            // Settings saved, could refresh data if needed
+          }}
         />
       )}
     </div>

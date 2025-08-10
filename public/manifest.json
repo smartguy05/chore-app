@@ -1,6 +1,6 @@
 {
-  "short_name": "ChoreApp",
-  "name": "Chore App - Fun Chores for Kids!",
+  "short_name": "Chores",
+  "name": "Chores - Fun Chores for Kids!",
   "description": "A fun and engaging chore management app for kids with rewards, achievements, and exponential leveling system",
   "icons": [
     {
@@ -52,8 +52,9 @@
       "purpose": "maskable any"
     }
   ],
-  "start_url": "/",
+  "start_url": "/?source=pwa",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "theme_color": "#3b82f6",
   "background_color": "#ffffff",
   "orientation": "portrait-primary",
