@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -67,7 +67,7 @@ interface CheckinStatus {
 }
 
 const KidDashboard: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [loading, setLoading] = useState(true);
@@ -127,8 +127,8 @@ const KidDashboard: React.FC = () => {
         toast.success(levelMessage, { duration: 5000 });
       }
       
-      // Refresh data to get updated points
-      fetchDashboardData();
+      // Refresh data to get updated points and user info
+      await Promise.all([fetchDashboardData(), refreshUser()]);
     } catch (error) {
       toast.error('Failed to complete task');
     } finally {
@@ -143,8 +143,8 @@ const KidDashboard: React.FC = () => {
       
       toast.success(`🎁 Reward redeemed: ${reward.title}!`);
       
-      // Refresh data
-      fetchDashboardData();
+      // Refresh data and user info
+      await Promise.all([fetchDashboardData(), refreshUser()]);
     } catch (error: any) {
       const message = error.response?.data?.error || 'Failed to redeem reward';
       toast.error(message);
@@ -166,8 +166,8 @@ const KidDashboard: React.FC = () => {
         toast.success(levelMessage, { duration: 5000 });
       }
       
-      // Refresh data to get updated status
-      fetchDashboardData();
+      // Refresh data and user info to get updated status
+      await Promise.all([fetchDashboardData(), refreshUser()]);
     } catch (error: any) {
       const message = error.response?.data?.error || 'Check-in failed';
       toast.error(message);
@@ -199,7 +199,7 @@ const KidDashboard: React.FC = () => {
     );
   }
 
-  const levelProgress: LevelProgress = getLevelProgress(user?.points || 0);
+  const levelProgress: LevelProgress = getLevelProgress((user?.experience_points ?? user?.points) || 0);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50">
@@ -222,7 +222,7 @@ const KidDashboard: React.FC = () => {
             <div className="flex items-center space-x-4">
               <div className="flex items-center bg-primary-100 rounded-full px-4 py-2">
                 <Star className="w-5 h-5 text-primary-600 mr-2" />
-                <span className="font-bold text-primary-700">{user?.points || 0} points</span>
+                <span className="font-bold text-primary-700">{(user?.spendable_points ?? user?.points) || 0} spendable</span>
               </div>
               <div className="level-badge level-{user?.level || 1}">
                 {user?.level || 1}
@@ -244,10 +244,17 @@ const KidDashboard: React.FC = () => {
         <div className="bg-white rounded-xl p-4 shadow-sm">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-medium text-gray-700">Progress to Level {levelProgress.currentLevel + 1}</span>
-            <span className="text-sm text-gray-500">{levelProgress.pointsInCurrentLevel}/{levelProgress.pointsNeededForNextLevel} points</span>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center bg-yellow-50 rounded-full px-3 py-1">
+                <Star className="w-4 h-4 text-yellow-500 mr-1" />
+                <span className="text-sm font-medium text-yellow-700">{(user?.spendable_points ?? user?.points) || 0} spendable</span>
+              </div>
+              <span className="text-sm text-gray-500">{levelProgress.pointsInCurrentLevel}/{levelProgress.pointsNeededForNextLevel} XP</span>
+            </div>
           </div>
           <div className="progress-bar">
             <motion.div
+              key={`progress-${(user?.experience_points ?? user?.points) || 0}-${levelProgress.currentLevel}`}
               className="progress-fill"
               initial={{ width: 0 }}
               animate={{ width: `${levelProgress.progressPercentage}%` }}
@@ -458,10 +465,16 @@ const KidDashboard: React.FC = () => {
               transition={{ duration: 0.3 }}
             >
               <div className="card">
-                <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
-                  <Gift className="w-6 h-6 mr-2 text-primary-600" />
-                  Available Rewards
-                </h2>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+                    <Gift className="w-6 h-6 mr-2 text-primary-600" />
+                    Available Rewards
+                  </h2>
+                  <div className="flex items-center bg-yellow-50 rounded-full px-4 py-2">
+                    <Star className="w-5 h-5 text-yellow-500 mr-2" />
+                    <span className="font-medium text-yellow-700">{(user?.spendable_points ?? user?.points) || 0} points to spend</span>
+                  </div>
+                </div>
                 
                 {rewards.length === 0 ? (
                   <div className="text-center py-12">
@@ -533,8 +546,8 @@ const KidDashboard: React.FC = () => {
                   
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="bg-primary-50 rounded-xl p-4">
-                      <div className="text-2xl font-bold text-primary-600">{user?.points || 0}</div>
-                      <div className="text-sm text-gray-600">Total Points</div>
+                      <div className="text-2xl font-bold text-primary-600">{(user?.spendable_points ?? user?.points) || 0}</div>
+                      <div className="text-sm text-gray-600">Spendable Points</div>
                     </div>
                     <div className="bg-success-50 rounded-xl p-4">
                       <div className="text-2xl font-bold text-success-600">{user?.level || 1}</div>

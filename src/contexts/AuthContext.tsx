@@ -9,6 +9,8 @@ interface User {
   type: 'parent' | 'kid';
   avatar?: string;
   points?: number;
+  experience_points?: number;
+  spendable_points?: number;
   level?: number;
   parentName?: string;
 }
@@ -22,6 +24,7 @@ interface AuthContextType {
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => void;
   requestMagicLink: (email: string) => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -169,6 +172,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     toast.success('Logged out successfully');
   };
 
+  const refreshUser = async () => {
+    try {
+      const response = await axios.get('/api/auth/me');
+      setUser(response.data);
+    } catch (error) {
+      console.error('Failed to refresh user data:', error);
+    }
+  };
+
   const value: AuthContextType = {
     user,
     loading,
@@ -178,6 +190,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     register,
     logout,
     requestMagicLink,
+    refreshUser,
   };
 
   return (

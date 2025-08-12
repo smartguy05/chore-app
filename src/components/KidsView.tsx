@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Edit, Trash2, Star, Trophy, User, X } from 'lucide-react';
+import { Edit, Trash2, Star, Trophy, User, X, Calendar, Cake } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { getLevelProgress, LevelProgress } from '../utils/levelingSystem';
@@ -11,7 +11,10 @@ interface Kid {
   name: string;
   avatar: string;
   points: number;
+  experience_points?: number;
+  spendable_points?: number;
   level: number;
+  birthdate?: string | number;
   created_at: string;
 }
 
@@ -143,7 +146,16 @@ const KidsView: React.FC<KidsViewProps> = ({ onKidUpdated }) => {
                   <div className="text-3xl">{getAvatarEmoji(kid.avatar)}</div>
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900">{kid.name}</h3>
-                    <p className="text-sm text-gray-500">Added {new Date(kid.created_at).toLocaleDateString()}</p>
+                    <p className="text-sm text-gray-500">
+                      {kid.birthdate ? (
+                        <span className="flex items-center gap-1">
+                          <Cake className="w-3 h-3" />
+                          Born {new Date(kid.birthdate).toLocaleDateString('en-US', { timeZone: 'UTC' })}
+                        </span>
+                      ) : (
+                        `Added ${new Date(kid.created_at).toLocaleDateString()}`
+                      )}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -171,12 +183,21 @@ const KidsView: React.FC<KidsViewProps> = ({ onKidUpdated }) => {
               </div>
 
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center text-sm text-gray-600">
-                    <Star className="w-4 h-4 mr-1 text-yellow-500" />
-                    Points
-                  </span>
-                  <span className="font-semibold text-gray-900">{kid.points}</span>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center text-sm text-gray-600">
+                      <Star className="w-4 h-4 mr-1 text-yellow-500" />
+                      Spendable
+                    </span>
+                    <span className="font-semibold text-gray-900">{kid.spendable_points ?? kid.points}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center text-xs text-gray-500">
+                      <Trophy className="w-3 h-3 mr-1 text-blue-500" />
+                      Experience
+                    </span>
+                    <span className="text-sm text-gray-700">{kid.experience_points ?? kid.points}</span>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -191,7 +212,7 @@ const KidsView: React.FC<KidsViewProps> = ({ onKidUpdated }) => {
 
                 <div className="pt-3 border-t border-gray-100">
                   {(() => {
-                    const progress: LevelProgress = getLevelProgress(kid.points);
+                    const progress: LevelProgress = getLevelProgress(kid.experience_points ?? kid.points);
                     return (
                       <div>
                         <div className="flex items-center justify-between text-sm">
@@ -257,7 +278,16 @@ const EditKidModal: React.FC<EditKidModalProps> = ({ kid, onClose, onKidUpdated 
   const [name, setName] = useState(kid.name);
   const [avatar, setAvatar] = useState(kid.avatar);
   const [points, setPoints] = useState(kid.points);
+  const [experiencePoints, setExperiencePoints] = useState(kid.experience_points ?? kid.points);
+  const [spendablePoints, setSpendablePoints] = useState(kid.spendable_points ?? kid.points);
   const [level, setLevel] = useState(kid.level);
+  const [birthdate, setBirthdate] = useState(
+    kid.birthdate 
+      ? typeof kid.birthdate === 'string' 
+        ? kid.birthdate.split('T')[0]
+        : new Date(kid.birthdate).toISOString().split('T')[0]
+      : ''
+  );
   const [newPin, setNewPin] = useState('');
   const [showPinField, setShowPinField] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -301,7 +331,10 @@ const EditKidModal: React.FC<EditKidModalProps> = ({ kid, onClose, onKidUpdated 
         name: name.trim(),
         avatar,
         points: parseInt(points.toString()),
-        level: parseInt(level.toString())
+        experience_points: parseInt(experiencePoints.toString()),
+        spendable_points: parseInt(spendablePoints.toString()),
+        level: parseInt(level.toString()),
+        birthdate: birthdate || null
       };
 
       // Add PIN to update data if provided
@@ -358,6 +391,23 @@ const EditKidModal: React.FC<EditKidModalProps> = ({ kid, onClose, onKidUpdated 
                 placeholder="Enter kid's name"
                 required
               />
+            </div>
+
+            {/* Birthdate */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Birthdate (Optional)
+              </label>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={birthdate}
+                  onChange={(e) => setBirthdate(e.target.value)}
+                  className="input-field w-full pr-10"
+                  max={new Date().toISOString().split('T')[0]}
+                />
+                <Calendar className="w-5 h-5 text-gray-400 absolute right-3 top-1/2 transform -translate-y-1/2" />
+              </div>
             </div>
 
             {/* Avatar */}
@@ -422,10 +472,10 @@ const EditKidModal: React.FC<EditKidModalProps> = ({ kid, onClose, onKidUpdated 
             </div>
 
             {/* Points and Level */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Points
+                  Legacy Points
                 </label>
                 <div className="relative">
                   <input
@@ -439,6 +489,40 @@ const EditKidModal: React.FC<EditKidModalProps> = ({ kid, onClose, onKidUpdated 
                 </div>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Experience Points
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    value={experiencePoints}
+                    onChange={(e) => setExperiencePoints(parseInt(e.target.value))}
+                    className="input-field w-full pr-10"
+                  />
+                  <Trophy className="w-5 h-5 text-blue-400 absolute right-3 top-1/2 transform -translate-y-1/2" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Spendable Points
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    value={spendablePoints}
+                    onChange={(e) => setSpendablePoints(parseInt(e.target.value))}
+                    className="input-field w-full pr-10"
+                  />
+                  <Star className="w-5 h-5 text-yellow-400 absolute right-3 top-1/2 transform -translate-y-1/2" />
+                </div>
+              </div>
+            </div>
+
+            <div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Level

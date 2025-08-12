@@ -26,7 +26,10 @@ interface Kid {
   name: string;
   avatar: string;
   points: number;
+  experience_points?: number;
+  spendable_points?: number;
   level: number;
+  birthdate?: string | number;
   created_at: string;
 }
 

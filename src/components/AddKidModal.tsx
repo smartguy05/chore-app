@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, Lock } from 'lucide-react';
+import { X, User, Lock, Calendar } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
@@ -13,6 +13,7 @@ const AddKidModal: React.FC<AddKidModalProps> = ({ onClose, onKidAdded }) => {
   const [name, setName] = useState('');
   const [pin, setPin] = useState('');
   const [avatar, setAvatar] = useState('default');
+  const [birthdate, setBirthdate] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -32,7 +33,11 @@ const AddKidModal: React.FC<AddKidModalProps> = ({ onClose, onKidAdded }) => {
 
     setLoading(true);
     try {
-      await axios.post('/api/parent/kids', { name: name.trim(), pin, avatar });
+      const payload: any = { name: name.trim(), pin, avatar };
+      if (birthdate) {
+        payload.birthdate = birthdate;
+      }
+      await axios.post('/api/parent/kids', payload);
       toast.success(`${name} has been added successfully!`);
       onKidAdded();
       onClose();
@@ -118,6 +123,22 @@ const AddKidModal: React.FC<AddKidModalProps> = ({ onClose, onKidAdded }) => {
               <p className="text-xs text-gray-500 mt-1">
                 This PIN will be used by your kid to log in
               </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Birthdate (Optional)
+              </label>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={birthdate}
+                  onChange={(e) => setBirthdate(e.target.value)}
+                  className="input-field w-full pr-10"
+                  max={new Date().toISOString().split('T')[0]}
+                />
+                <Calendar className="w-5 h-5 text-gray-400 absolute right-3 top-1/2 transform -translate-y-1/2" />
+              </div>
             </div>
 
             <div>
