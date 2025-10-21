@@ -1,8 +1,12 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const fs = require('fs');
 
-// Database file path
-const dbPath = path.join(__dirname, 'chore_app.db');
+// Database file path - use data directory if it exists (Docker), otherwise current directory
+const dataDir = path.join(__dirname, 'data');
+const dbPath = fs.existsSync(dataDir)
+  ? path.join(dataDir, 'chore_app.db')
+  : path.join(__dirname, 'chore_app.db');
 
 // Create database connection
 const db = new sqlite3.Database(dbPath, (err) => {

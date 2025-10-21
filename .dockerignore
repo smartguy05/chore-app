@@ -1,0 +1,58 @@
+# Node modules
+node_modules
+client/node_modules
+server/node_modules
+
+# Build outputs
+client/build
+dist
+
+# Git
+.git
+.gitignore
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Database (will be handled by volume)
+server/*.db
+server/data/*.db
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs
+*.log
+
+# Testing
+coverage
+.nyc_output
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Documentation
+README.md
+docs
+
+# CI/CD
+.github
+.gitlab-ci.yml

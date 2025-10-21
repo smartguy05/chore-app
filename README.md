@@ -29,6 +29,30 @@ A fun and engaging web application that helps parents manage household chores fo
 
 ## Quick Start
 
+### Option 1: Docker (Recommended for Production)
+
+1. **Copy environment file:**
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Edit .env and set your JWT_SECRET:**
+   ```bash
+   nano .env  # or your preferred editor
+   ```
+
+3. **Start with Docker Compose:**
+   ```bash
+   docker-compose up -d
+   ```
+
+4. **Open your browser:**
+   - Application: http://localhost:5000
+
+For detailed Docker documentation, see [DOCKER.md](./DOCKER.md)
+
+### Option 2: Local Development
+
 1. **Install dependencies:**
    ```bash
    npm run install-all
