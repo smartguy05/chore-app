@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
 require('dotenv').config();
 
 const { router: authRoutes } = require('./routes/auth');
@@ -47,19 +48,32 @@ app.use('/api/kid', kidRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/rewards', rewardRoutes);
 
+// Serve static files from React build (in production)
+if (process.env.NODE_ENV === 'production') {
+  const publicPath = path.join(__dirname, 'public');
+  app.use(express.static(publicPath));
+
+  // Handle React Router - send all non-API requests to index.html
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(publicPath, 'index.html'));
+  });
+}
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({ 
+  res.status(500).json({
     error: 'Something went wrong!',
     message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
   });
 });
 
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
+// 404 handler for API routes in development
+if (process.env.NODE_ENV !== 'production') {
+  app.use('*', (req, res) => {
+    res.status(404).json({ error: 'Route not found' });
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
